@@ -1,29 +1,43 @@
+use actix_web::{web, HttpResponse, Responder};
 use crate::services::user_service;
-use crate::utils::http_responses::NOT_FOUND;
-use std::net::TcpStream;
-use std::io::{Read, Write};
+use tokio_postgres::Client;
 
-pub fn handle_user_requests(mut stream: TcpStream, db_url: &str) {
-    let mut buffer = [0; 1024];
-    let mut request = String::new();
+// Handler para criar usuário
+pub async fn create_user(db_client: web::Data<Client>, body: String) -> impl Responder {
+    match user_service::create_user(&body, db_client.get_ref()).await {
+        Ok(_) => HttpResponse::Ok().body("User created successfully"),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to create user: {}", e)),
+    }
+}
 
-    match stream.read(&mut buffer) {
-        Ok(size) => {
-            request.push_str(String::from_utf8_lossy(&buffer[..size]).as_ref());
+// Handler para pegar todos os usuários
+pub async fn get_all_users(db_client: web::Data<Client>) -> impl Responder {
+    match user_service::get_all_users(db_client.get_ref()).await {
+        Ok(users) => HttpResponse::Ok().json(users),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to fetch users: {}", e)),
+    }
+}
 
-            let (status_line, content) = match &*request {
-                r if r.starts_with("POST /users") => user_service::create_user(r, db_url),
-                r if r.starts_with("GET /users/") => user_service::get_user_by_id(r, db_url),
-                r if r.starts_with("PUT /users") => user_service::update_user(r, db_url),
-                r if r.starts_with("GET /users") => user_service::get_all_users(r, db_url),
-                r if r.starts_with("DELETE /users/") => user_service::delete_user(r, db_url),
-                _ => (NOT_FOUND.to_string(), "404 Not Found".to_string()),
-            };
+// Handler para pegar usuário por ID
+pub async fn get_user_by_id(db_client: web::Data<Client>, user_id: web::Path<String>) -> impl Responder {
+    match user_service::get_user_by_id(&user_id, db_client.get_ref()).await {
+        Ok(user) => HttpResponse::Ok().json(user),
+        Err(e) => HttpResponse::NotFound().body(format!("User not found: {}", e)),
+    }
+}
 
-            stream.write_all(format!("{}{}", status_line, content).as_bytes()).unwrap();
-        }
-        Err(e) => {
-            println!("Error: {}", e);
-        }
+// Handler para atualizar usuário
+pub async fn update_user(db_client: web::Data<Client>, body: String) -> impl Responder {
+    match user_service::update_user(&body, db_client.get_ref()).await {
+        Ok(_) => HttpResponse::Ok().body("User updated successfully"),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to update user: {}", e)),
+    }
+}
+
+// Handler para deletar usuário por ID
+pub async fn delete_user(db_client: web::Data<Client>, user_id: web::Path<String>) -> impl Responder {
+    match user_service::delete_user(&user_id, db_client.get_ref()).await {
+        Ok(_) => HttpResponse::Ok().body("User deleted successfully"),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to delete user: {}", e)),
     }
 }
