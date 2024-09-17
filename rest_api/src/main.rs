@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
 use std::env;
@@ -27,6 +28,14 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::default()
+                    .allowed_origin("http://localhost:3000") 
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_headers(vec![actix_web::http::header::AUTHORIZATION, actix_web::http::header::ACCEPT])
+                    .allowed_header(actix_web::http::header::CONTENT_TYPE)
+                    .max_age(3600),  // Cache de CORS por 1 hora
+            )
             .app_data(db_client_data.clone())
             .route("/product", web::post().to(controllers::product_controller::create_product))
             .route("/product", web::get().to(controllers::product_controller::get_all_products))
